@@ -5,7 +5,7 @@ A prototype scraper for balance sheet components in R. Once release dates for th
 
 When time permits this will be extended further to not only generate panel data for each asset class, but also run panel analysis on that data.
 
-The balance sheet data itself consists of ~300-700 rows of character strings (asset class names, supplemental notes) and numeric data (balances, week-to-week changes, adjustments, etc.). Overall, 582 balance sheets (web pages) were scraped, and ~17-32 rows from those balance sheets retained.
+The balance sheet data itself consists of ~300-700 rows of character strings (asset and liability names, supplemental notes) and numeric data (balances, week-to-week changes, adjustments, etc.). Overall, 582 balance sheets (web pages) were scraped, and ~17-32 rows from those balance sheets retained.
 
 The provisional objective of the project is to automate the analysis of balance sheets of publicly traded companies, data which is available via the SEC's EDGAR database.
 
