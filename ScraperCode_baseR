@@ -1,0 +1,102 @@
+#prototype of balance sheet scraper in R
+
+FedBS = function(DataDate){
+
+ #read the Fed's H.4.1 Assets (5.) section
+ FedBS = read.fwf(paste("https://www.federalreserve.gov/releases/h41/",DataDate,"/",
+                        sep = ""), 115,header = FALSE,sep = "\n",skip = 10)
+ 
+ #convert factors to char strings
+ FedBS[,1] = as.character(FedBS[,1])
+
+ #identify the beginning and end of the Assets section
+ Loc = as.numeric(sapply(FedBS, function(x) grep("Consolidated Statement of Condition of All Federal Reserve Banks$",x))) + 7
+
+ End = as.numeric(sapply(FedBS,function(x) grep("Total assets", x))[1])
+
+ #remove unwanted data
+ FedBS = as.data.frame(FedBS[Loc:End,], stringsAsFactors = FALSE)
+ 
+ #convert factored strings to chars, if data frame conversion fails
+ FedBS[,1] = as.character(FedBS[,1])
+ 
+ #clean the spacing
+ FedBS[,1] = gsub("\\s+", " ", FedBS[,1])
+ FedBS[,1] = gsub("^\\s|\\s$", "", FedBS[,1])
+
+ #combine contents from rows that belong in a single cell
+ ToPaste = c(sapply(FedBS, function(x) grep(",$|[A-Za-z]$",x)))
+ if (class(ToPaste) == "integer") {
+   for (i in ToPaste) {
+     FedBS[i,1] = paste0(FedBS[i,1],FedBS[i + 1,1], sep = " ")
+   }
+   RemRws = ToPaste + 1
+   FedBS = data.frame(FedBS[-which(rownames(FedBS) %in% RemRws),],stringsAsFactors = FALSE)
+ }
+ 
+ #remove empty rows
+ if (length(which(FedBS == "" | is.na(FedBS))) > 0) {
+   FedBS = sapply(FedBS, function(x) x[-which(x == "" | is.na(x))])
+ }
+
+ #remove parenthetical numbers, commas, periods
+ FedBS[,1] = sapply(FedBS[,1], function(x) gsub("\\([0-9]+\\)|\\([0-9]+,[0-9]+\\)|,|\\.", "",x))
+
+ #find all words(gregexpr), list char strings for each row (regmatches)
+ FedBSCls = regmatches(FedBS[,1],gregexpr("[A-Za-z]*",FedBS[,1]),invert = FALSE)
+
+ #remove empty strings from the list of row char strings
+ for (i in 1:length(FedBSCls)) {
+  FedBSCls[[i]] = FedBSCls[[i]][-which(FedBSCls[[i]] == "")]
+ }
+
+ #find the length of each row's char strings
+ Len = c(); for (i in 1:length(FedBSCls)) {Len[i] = length(FedBSCls[[i]])}
+
+ #paste each row's char strings into a single phrase
+ FedClass = c()
+ for (i in 1:length(FedBSCls)) {
+  FedClass[i] = ave(FedBSCls[[i]], Len[i],
+                    FUN = function(x) paste0(paste(x,collapse = ' ')))[1]
+ }
+
+ #remove each row's matched char strings
+ regmatches(FedBS[,1],gregexpr("[A-Za-z]*",FedBS[,1]),invert = FALSE) = ""
+
+ #remove superfluous punctutation from remaining numeric data
+ FedBS[,1] = gsub("^\\s+","",FedBS[,1])
+ FedBS[,1] = gsub("^-\\s|^-\\s+","",FedBS[,1])
+
+ #extract the current balance for each class of asset
+ FedTotals = t(data.frame(regmatches(FedBS[,1],gregexpr("^-?[0-9]*\\b",
+                                                   FedBS[,1]),invert = FALSE)))
+
+ rownames(FedTotals) = FedClass
+ colnames(FedTotals) = "Value"
+
+ FedTotals
+
+}
+
+#These data are released each Thursday, generally at 4:30 p.m. Publication may
+#be shifted to the next business day when the regular publication date falls on
+#a federal holiday.
+
+#https://www.federalreserve.gov/releases/h41/current/ (20180222)
+
+#this data was generated as a separate scrape (stored as .csv), whereby Year-Month-Date
+#were extracted from the Fed's release date site: https://www.federalreserve.gov/releases/h41/
+
+Latest = "20180222"
+YrMoDate = read.csv(paste("FedH.4.1ReleaseDates",Latest,".csv", sep = ""), stringsAsFactors = FALSE)
+
+if (names(YrMoDate)[1] == "X") {YrMoDate = YrMoDate[,-(which(names(YrMoDate) == "X"))]}
+
+FedAssets = list()
+for (i in 1:length(YrMoDate)) FedAssets[[i]] = FedBS(YrMoDate[i])
+
+#Next steps:
+#1. compile the observations of each asset class into as single data frame (with dates)
+#2. run panel analysis on each asset class
+#3. code conversion to generate balance sheet components of publicly traded companies (EDGAR database)
+#4. run panel analysis on balance sheet components of publicly traded companies
